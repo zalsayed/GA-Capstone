@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+env/
+venv/
+*.env
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# GitHub Actions artifacts
+.github/workflows/*.yml
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Ignore all other files outside this repo (optional)
+../../*
