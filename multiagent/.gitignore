@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# Do not ignore directories (needed to search for files)
+!*/
+
+# Do not ignore .py files
+!*.py
+
+# Do not ignore the .gitignore file itself
+!.gitignore
