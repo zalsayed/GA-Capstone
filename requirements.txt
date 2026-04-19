@@ -1,0 +1,29 @@
+# Install: pip install -r requirements.txt
+
+streamlit>=1.40,<2.0
+pandas>=2.0,<3.0
+requests>=2.31,<3.0
+python-dotenv>=1.0.0          # .env file support
+
+anthropic>=0.40.0             # Claude (Anthropic) — paid
+# google-generativeai>=0.7.0  # Gemini — free tier available, uncomment if using
+# groq and openrouter use the built-in `requests` library — no extra package needed
+
+bcrypt>=4.1.0                 # Password hashing for AUTH_ENABLED mode
+
+pymupdf>=1.24.0               # Fast PDF parser (PyMuPDF/fitz)
+pdfplumber>=0.11.0            # Fallback PDF parser
+
+Pillow>=10.0                  # Image processing
+# easyocr>=1.7.1              # GPU OCR (large download — uncomment if needed)
+# pytesseract>=0.3.10         # CPU OCR (also: apt install tesseract-ocr)
+
+pyyaml>=6.0
+
+playwright>=1.44              # After install: playwright install chromium
+pytest>=8.0
+pytest-json-report>=1.5.0    # Structured JSON test results
+# appium-python-client>=3.1.0  # Mobile — uncomment if testing Android/iOS
+
+pytest-cov>=5.0
+ruff>=0.4.0                   # Linting
