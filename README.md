@@ -1,160 +1,87 @@
 # GA-Capstone
+This repository houses two QA frameworks designed to accelerate digital transformation, ensure regulatory compliance, and automate the software development lifecycle. By leveraging multi-agent AI architectures, these tools reduce manual oversight, enhance service quality, and streamline reporting for enterprise stakeholders.
 
-This repository contains 2 tool developed for QA  
+# 1. ContentAuditor: Intelligent Service Governance
 
-1. ContentAuditor that audits Bahrain.bh service pages
+**Objective:** Ensure high-fidelity content delivery for public-facing digital services (Bahrain.bh).
 
-A tool that automatically checks Bahrain government service pages for quality issues in both Arabic and English — and tells you exactly what's wrong and how to fix it.
+Manual auditing of government service pages is traditionally a bottleneck, requiring **30–40 minutes** of manual review per service. **ContentAuditor** compresses this cycle to **under 60 seconds** by combining rigid rule-based checks with context-aware AI analysis.
 
-What it does
-You give it a government service page. It gives you a list of issues — spelling errors, missing links, unclear descriptions, untranslated content, vague attachment names, contradictions between languages, and more. Each issue comes with the exact location on the page and a ready-to-use fix.
-It audits one service in under 60 seconds. A manual audit takes 30–40 minutes.
+---
 
-How it works
-The tool uses two detection methods that work together:
-Rules — a checklist of 30+ specific things that are always objectively wrong. Arabic spelling errors, missing hyperlinks on regulations, empty sections, fee mismatches between Arabic and English. These run instantly with no API cost.
-AI — Google Gemini reads the page and catches issues that require judgment. Unclear descriptions, translation mismatches, vague eligibility criteria, contradictory submission channels. Things a rule cannot detect.
-Both run on every page. If they find the same issue, it only appears once in the report.
+## Demonstration & Knowledge Transfer
 
-Requirements
-pip install requests beautifulsoup4 playwright streamlit
-playwright install chromium
-You need a Gemini API key (free at aistudio.google.com) for AI mode. Rules-only mode needs no key.
+- **Watch Demo Video** — See the tool in action, auditing services in under 60 seconds.  
+- **View Presentation Slides** — Review the strategic overview and ROI analysis.  
 
-Quick start
-Audit one service by ID:
-python3 auditor_v2.py \
-  --psid 3182 \
-  --key YOUR_GEMINI_KEY \
-  --entity "Ministry of Social Development"
-Audit from a saved HTML page:
-python3 auditor_v2.py \
-  --html page.html \
-  --key YOUR_GEMINI_KEY \
-  --entity "NHRA"
-Audit multiple services from a CSV:
-python3 auditor_v2.py \
-  --psid-file reports/services.csv \
-  --key YOUR_GEMINI_KEY \
-  --entity "Civil Service Bureau"
-Use the web interface instead:
-streamlit run app.py
+---
 
-Audit modes
-Mode	What runs	API key needed	Speed
---mode rules	Rule engine only	No	Instant
---mode ai	AI only	Yes	~35s/service
---mode full	Both (default)	Yes	~40s/service
-Use --mode rules when you hit rate limits or want a quick structural check.
+## Business Value
 
-Output
-Each run produces a CSV file in reports/ with these columns:
-Column	What it contains
-Entity	The government entity
-Page	Service name linked to the page
-Issue	Placement + Description + Solution
-Status	New Issue
-Additional Comments	Screenshot link if enabled
-The Issue cell contains three parts — where the problem is, what the problem is, and the exact corrected text ready to copy and paste.
+- **Operational Efficiency:** Achieves a ~95% reduction in audit time.  
+- **Quality Assurance:** Eliminates human error in bilingual content, ensuring Arabic and English consistency.  
+- **Regulatory Compliance:** Automatically flags missing links, incorrect fee structures, and vague requirements.  
+- **Seamless Reporting:** Generates audit trails with actionable fixes and integrated screenshot evidence.  
 
-Options
---psid 1634 1635          # Audit specific service IDs
---esid 230 456            # Audit eService IDs
---html page.html          # Audit from saved HTML file
---psid-file services.csv  # Audit from a CSV of service IDs
---key AIza...             # Gemini API key
---groq-key gsk_...        # Groq key (fallback if Gemini hits limits)
---openrouter-key sk-or-.. # OpenRouter key (second fallback)
---mode full               # full / rules / ai
---workers 3               # How many services to audit in parallel
---screenshots             # Take screenshots of each issue location
---drive-key client.json   # Upload screenshots to Google Drive
---drive-folder FOLDER_ID  # Google Drive folder ID
---entity "Name"           # Entity name for the report
---reviewer                # Review issues interactively after audit
---resume                  # Resume a run that was interrupted
+---
 
-If a run fails or gets interrupted
-python3 auditor_v2.py --resume --key YOUR_KEY --entity "..."
-The tool saves progress automatically. Resume picks up exactly where it left off and retries only the services that failed.
+## Core Capabilities
 
-Screenshots
-Add --screenshots to capture a screenshot of each issue's location on the page. Add --drive-key and --drive-folder to upload them to Google Drive automatically.
-python3 auditor_v2.py \
-  --psid 3182 \
-  --key YOUR_KEY \
-  --entity "Ministry" \
-  --screenshots \
-  --drive-key client_secret.json \
-  --drive-folder YOUR_FOLDER_ID
+| Feature               | Business Benefit                                                                 |
+|----------------------|----------------------------------------------------------------------------------|
+| Hybrid Detection     | Combines rule-based logic (accuracy) with GenAI (context/nuance).               |
+| Localization Audit   | Validates contradictory information between Arabic and English versions.        |
+| Evidence Collection  | Automated screenshot capture and storage (e.g., Google Drive) for audit trails. |
+| Interactive Review   | Allows human-in-the-loop (HITL) sign-off before final export.                   |
 
-Review issues before exporting
-Add --reviewer to enter an interactive review after the audit:
-python3 auditor_v2.py --psid 3182 --key YOUR_KEY --reviewer
-For each issue you can accept it, edit the description or solution, reject it as a false positive, or skip it. You can also add issues the tool missed. The final CSV contains only the issues you approved.
-You can also review an existing CSV directly:
-python3 hitl_reviewer.py --csv reports/Ministry_3182.csv --entity "Ministry"
+---
 
-Web interface
-streamlit run app.py
-The web interface lets you upload HTML files or enter service IDs, choose your audit mode and API providers, enable screenshots and Drive upload, and review issues before downloading — all without touching the command line.
+# 2. Req2Defect: Enterprise-Grade QA Pipeline
 
-File structure
-multiagent/
-├── auditor_v2.py       Main CLI
-├── pipeline.py         Parallel processing engine
-├── rules.py            Rule engine (30+ checks)
-├── ai.py               AI prompts and provider routing
-├── qa_agent.py         Pre-detection flags + audit orchestration
-├── scraper.py          Page scraping
-├── output.py           CSV generation
-├── screenshot.py       Screenshot capture
-├── drive.py            Google Drive upload
-├── cache.py            Content-hash cache (skip unchanged pages)
-├── hitl_reviewer.py    Terminal review tool
-├── app.py              Streamlit web interface
-│
-└── capstone/
-    ├── annotate.py     Build and label ground truth dataset
-    ├── evaluate.py     Measure precision, recall, F1
-    ├── visualize.py    Generate evaluation report
-    ├── distill.py      Knowledge distillation pipeline
-    └── README.md       Capstone documentation
+**Objective:** End-to-end automated testing, from requirements analysis to defect management.
 
-Evaluation (capstone)
-Step 1 — Import your reviewed audit CSVs as ground truth:
-python3 capstone/annotate.py import \
-  --input reports/sheets/ \
-  --output ground_truth.csv
-Step 2 — Check the dataset:
-python3 capstone/annotate.py stats --file ground_truth.csv
-Step 3 — Run the evaluation:
-python3 capstone/evaluate.py \
-  --gt ground_truth.csv \
-  --rules-dir reports/eval/rules/ \
-  --hybrid-dir reports/eval/hybrid/ \
-  --output-dir reports/
-Step 4 — Generate the report:
-python3 capstone/visualize.py \
-  --summary reports/eval_summary_*.json
-Opens capstone_report.html with precision, recall, F1 charts by mode and issue type.
+**Req2Defect** moves beyond basic testing by integrating directly into the development ecosystem. It acts as an autonomous QA engineer, interpreting requirements, executing test plans, and managing the defect lifecycle within existing project management tools (Jira).
 
-Distillation (capstone)
-Prepare training data from your audit CSVs:
-python3 capstone/distill.py prepare \
-  --csv-dir reports/sheets/ \
-  --output distilled_output/training_data.jsonl
-Run Level 1 — few-shot distillation with llama:
-python3 capstone/distill.py level1 \
-  --csv-dir reports/sheets/ \
-  --groq-key YOUR_GROQ_KEY \
-  --n-services 10 \
-  --output distilled_output/
-Level 2 — fine-tune on Google Colab: Upload training_data.jsonl to Colab, set runtime to T4 GPU, and run the training cells. Takes under 10 minutes for 135 examples.
+---
 
-API keys — where to get them free
-Provider	Where	Starts with
-Gemini	aistudio.google.com	AIza
-Groq	console.groq.com	gsk_
-OpenRouter	openrouter.ai	sk-or-
+## Demonstration & Knowledge Transfer
+
+- **Watch Demo Video** — Walkthrough of requirement analysis to automated Jira ticket creation.  
+- **View Presentation Slides** — Deep dive into the multi-agent architecture and CI/CD integration.  
+
+---
+
+## Business Value
+
+- **Faster Release Cycles:** Accelerates the path from requirements to QA sign-off.  
+- **Integrated Workflow:** Automates the creation of Jira tickets, reducing administrative overhead for developers.  
+- **Scalability & Reliability:** Built for production, utilizing Docker and CI/CD pipelines to ensure consistent test execution.  
+- **Governance:** Provides full traceability and logging of token usage, test history, and system logs.  
+
+---
+
+## Key Operational Features
+
+- **Jira Integration:** Automatically pushes high-fidelity defect reports into your existing Jira project for immediate triaging.  
+- **Production Readiness:** Includes authentication (bcrypt), SQLite persistence for audit history, and environment configuration management.  
+- **CI/CD Ready:** Fully containerized with Docker/Docker Compose and GitHub Actions integration.  
+- **Fallback Logic:** Real-world testing via Playwright with automated fallback to simulation if the target application is unreachable.  
+
+---
+
+# Technical Overview & Deployment
+
+Both systems are built on scalable, modular architectures designed to fit into modern enterprise infrastructures.
+
+---
+
+## Architecture Summary
+
+- **Extensibility:** Multi-agent design allows for easy expansion of capabilities (e.g., adding new rule sets or test agents).  
+
+- **Deployment Options:**
+  - **Containerized:** Fully Dockerized for rapid, portable deployment in cloud or on-prem environments.  
+  - **Cloud Agnostic:** Supports multiple LLM backends (Gemini, Claude, Groq, OpenRouter) to balance cost, performance, and vendor diversification.  
+
+- **Maintainability:** Both systems support automated testing suites to ensure system stability during updates.  
 
