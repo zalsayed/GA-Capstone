@@ -1,0 +1,45 @@
+# ── Core ─────────────────────────────────────────────────────────
+streamlit>=1.40,<2.0
+pandas>=2.0,<3.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# ── Web Scraping & Requests ──────────────────────────────────────
+requests==2.32.3
+beautifulsoup4==4.12.3
+
+# ── Google API & Auth ────────────────────────────────────────────
+google-api-python-client==2.136.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.1
+google-genai>=1.0.0
+
+# ── LLM Backends & Agents ─────────────────────────────────────────
+anthropic>=0.40.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-groq>=0.2.0
+langgraph>=0.2.0
+
+# ── Auth ─────────────────────────────────────────────────────────
+bcrypt>=4.1.0
+
+# ── PDF & Data Parsing ───────────────────────────────────────────
+pymupdf>=1.24.0
+pdfplumber>=0.11.0
+openpyxl>=3.1.5
+pillow>=12.0.0
+
+# ── Swagger / OpenAPI ────────────────────────────────────────────
+pyyaml>=6.0
+
+# ── Test Execution ───────────────────────────────────────────────
+# Note: Requires post-install step: 'playwright install'
+playwright>=1.44
+pytest>=8.0
+pytest-json-report>=1.5.0
+pytest-cov>=5.0
+
+# ── Code Quality ─────────────────────────────────────────────────
+ruff>=0.4.0

@@ -13,25 +13,9 @@ _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
 
 st.set_page_config(
-    page_title="QA Auditor",
-    page_icon=None,
+    page_title="Bahrain.bh QA Auditor",
     layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-st.markdown(
-    """
-<style>
-  .block-container { max-width: 900px; padding-top: 2rem; }
-  h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.2rem; }
-  h3 { font-size: 1rem; font-weight: 600; margin-top: 1.5rem; }
-  .stAlert { font-size: 0.85rem; }
-  div[data-testid="stMetricValue"] { font-size: 1.8rem; }
-  .stDataFrame { font-size: 0.82rem; }
-  footer { visibility: hidden; }
-</style>
-""",
-    unsafe_allow_html=True,
+    initial_sidebar_state="expanded",
 )
 
 
@@ -54,13 +38,7 @@ def _init_state():
 _init_state()
 
 
-def _parse_results_csv(csv_text: str) -> list[dict]:
-    reader = csv.DictReader(io.StringIO(csv_text))
-    return list(reader)
-
-
 def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
-    """Run the auditor in a background thread, streaming log lines."""
     try:
         import importlib.util
 
@@ -83,7 +61,6 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
 
         import scraper as S
         from pipeline import run_pipeline
-        from cache import AuditCache
 
         import builtins
 
@@ -118,7 +95,6 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
                         is_eservice=s.get("is_eservice", False),
                     )
                 )
-
         elif config.get("psids"):
             for pid in config["psids"]:
                 jobs.append(
@@ -129,7 +105,6 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
                         is_eservice=False,
                     )
                 )
-
         elif config.get("esids"):
             for eid in config["esids"]:
                 jobs.append(
@@ -140,7 +115,6 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
                         is_eservice=True,
                     )
                 )
-
         elif config.get("csv_path"):
             raw = S.load_services_csv(config["csv_path"])
             for s in raw:
@@ -170,9 +144,9 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
 
                 drive_svc = D.init(drive_key_path)
                 upload_fn = D.upload
-                log_q.put("  Google Drive connected")
+                log_q.put("Google Drive connected")
             except Exception as e:
-                log_q.put(f"  Drive connection failed: {e}")
+                log_q.put(f"Drive connection failed: {e}")
 
         state = run_pipeline(
             {
@@ -193,7 +167,6 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
         )
 
         builtins.print = original_print
-
         all_issues = [
             i for r in state.get("completed", []) for i in r.get("issues", [])
         ]
@@ -221,7 +194,7 @@ def _run_audit(config: dict, log_q: queue.Queue, result_q: queue.Queue):
             pass
 
 
-def _apply_review(issues: list, reviewed: dict, added: list) -> list:
+def _apply_review(issues, reviewed, added):
     result = []
     for iss in issues:
         idx = str(iss.get("id", ""))
@@ -244,10 +217,8 @@ def _apply_review(issues: list, reviewed: dict, added: list) -> list:
     return result
 
 
-def _save_corrections_to_gt(
-    reviewed: dict, issues: list, added: list, entity: str
-) -> str:
-    import csv as _csv, os as _os
+def _save_corrections_to_gt(reviewed, issues, added, entity):
+    import csv as _csv, os as _os, re as _re
 
     gt_path = "ground_truth.csv"
     cols = [
@@ -271,10 +242,7 @@ def _save_corrections_to_gt(
     for idx, rev in reviewed.items():
         iss = iss_by_id.get(idx, {})
         psid = ""
-        page = iss.get("service", "") or ""
-        import re as _re
-
-        m = _re.search(r"[?&]psID=(\d+)", page, _re.IGNORECASE)
+        m = _re.search(r"[?&]psID=(\d+)", iss.get("service", "") or "", _re.IGNORECASE)
         if m:
             psid = m.group(1)
         rows.append(
@@ -327,7 +295,39 @@ def _save_corrections_to_gt(
     return gt_path
 
 
-def _render_review(issues: list, entity: str):
+def _issues_to_csv(issues):
+    if not issues:
+        return ""
+    cols = [
+        "#",
+        "Entity",
+        "Service",
+        "Section",
+        "Language",
+        "Placement",
+        "Description",
+        "Solution",
+    ]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=cols)
+    writer.writeheader()
+    for i, iss in enumerate(issues, 1):
+        writer.writerow(
+            {
+                "#": i,
+                "Entity": iss.get("entity", ""),
+                "Service": iss.get("service", ""),
+                "Section": iss.get("section", ""),
+                "Language": iss.get("language", ""),
+                "Placement": iss.get("issue_placement", ""),
+                "Description": iss.get("issue_description", ""),
+                "Solution": iss.get("proposed_solution", ""),
+            }
+        )
+    return buf.getvalue()
+
+
+def _render_review(issues, entity):
     reviewed = st.session_state.reviewed
     added = st.session_state.added_issues
     idx = st.session_state.review_index
@@ -338,14 +338,12 @@ def _render_review(issues: list, entity: str):
     edited = sum(1 for v in reviewed.values() if v["status"] == "edited")
     remaining = total - len(reviewed)
 
-    st.markdown("**Review issues**")
-    p1, p2, p3, p4, p5 = st.columns(5)
-    p1.metric("Total", total)
-    p2.metric("Accepted", accepted)
-    p3.metric("Edited", edited)
-    p4.metric("Rejected", rejected)
-    p5.metric("Remaining", remaining)
-
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Total", total)
+    c2.metric("Accepted", accepted)
+    c3.metric("Edited", edited)
+    c4.metric("Rejected", rejected)
+    c5.metric("Remaining", remaining)
     st.progress(len(reviewed) / total if total else 1.0)
 
     if idx < total:
@@ -353,37 +351,43 @@ def _render_review(issues: list, entity: str):
         iss_id = str(iss.get("id", ""))
         rev = reviewed.get(iss_id, {})
 
-        st.markdown(
-            f"**Issue {idx + 1} of {total}** — {iss.get('section','')} · {iss.get('language','')} · {iss.get('rule_id','AI')}"
+        st.info(
+            f"**Issue {idx+1} of {total}**  \n"
+            f"Section: **{iss.get('section','')}** · "
+            f"Language: **{iss.get('language','')}** · "
+            f"Source: **{iss.get('rule_id','AI')}**  \n"
+            f"*{iss.get('issue_placement','')}*"
         )
-        st.caption(f"Placement: {iss.get('issue_placement','')}")
 
         new_desc = st.text_area(
             "Description",
-            value=rev.get("description", iss.get("issue_description", "")),
             height=80,
+            value=rev.get("description", iss.get("issue_description", "")),
             key=f"desc_{iss_id}",
         )
         new_sol = st.text_area(
-            "Solution",
-            value=rev.get("solution", iss.get("proposed_solution", "")),
+            "Proposed solution",
             height=80,
+            value=rev.get("solution", iss.get("proposed_solution", "")),
             key=f"sol_{iss_id}",
         )
-        sev = st.select_slider(
-            "Severity",
-            options=[1, 2, 3],
-            value=rev.get("severity", 2),
-            format_func=lambda x: {1: "Minor", 2: "Moderate", 3: "Critical"}[x],
-            key=f"sev_{iss_id}",
-        )
+
+        sev_col, _ = st.columns([1, 2])
+        with sev_col:
+            sev = st.select_slider(
+                "Severity",
+                options=[1, 2, 3],
+                value=rev.get("severity", 2),
+                format_func=lambda x: {1: "Minor", 2: "Moderate", 3: "Critical"}[x],
+                key=f"sev_{iss_id}",
+            )
+
         notes = st.text_input(
             "Notes (optional)", value=rev.get("notes", ""), key=f"notes_{iss_id}"
         )
 
-        c1, c2, c3, c4 = st.columns(4)
-
-        if c1.button("Accept", key=f"acc_{iss_id}"):
+        b1, b2, b3, b4 = st.columns(4)
+        if b1.button("Accept", key=f"acc_{iss_id}", use_container_width=True):
             reviewed[iss_id] = {
                 "status": "accepted",
                 "severity": sev,
@@ -393,8 +397,9 @@ def _render_review(issues: list, entity: str):
             }
             st.session_state.review_index = idx + 1
             st.rerun()
-
-        if c2.button("Accept with edits", key=f"edit_{iss_id}"):
+        if b2.button(
+            "Accept with edits", key=f"edit_{iss_id}", use_container_width=True
+        ):
             reviewed[iss_id] = {
                 "status": "edited",
                 "severity": sev,
@@ -404,8 +409,7 @@ def _render_review(issues: list, entity: str):
             }
             st.session_state.review_index = idx + 1
             st.rerun()
-
-        if c3.button("Reject (false positive)", key=f"rej_{iss_id}"):
+        if b3.button("Reject", key=f"rej_{iss_id}", use_container_width=True):
             reviewed[iss_id] = {
                 "status": "rejected",
                 "severity": sev,
@@ -415,14 +419,14 @@ def _render_review(issues: list, entity: str):
             }
             st.session_state.review_index = idx + 1
             st.rerun()
-
-        if c4.button("Skip", key=f"skip_{iss_id}"):
+        if b4.button("Skip", key=f"skip_{iss_id}", use_container_width=True):
             st.session_state.review_index = idx + 1
             st.rerun()
+    else:
+        st.success("All issues reviewed.")
 
-    st.markdown("---")
-    st.markdown("**Add a missed issue**")
-    with st.expander("Add issue the tool missed"):
+    st.divider()
+    with st.expander("Add an issue the tool missed"):
         a_section = st.selectbox(
             "Section",
             [
@@ -468,22 +472,20 @@ def _render_review(issues: list, entity: str):
                 st.success("Issue added.")
                 st.rerun()
 
-    st.markdown("---")
-    fin1, fin2 = st.columns(2)
-
+    st.divider()
+    fin1, fin2 = st.columns([2, 1])
     with fin1:
-        if st.button("Finalize & export", type="primary"):
+        if st.button("Finalize & export", type="primary", use_container_width=True):
             final = _apply_review(issues, reviewed, added)
             csv_data = _issues_to_csv(final)
             gt_path = _save_corrections_to_gt(reviewed, issues, added, entity)
             st.session_state.reviewing = False
             st.session_state.results["_final_csv"] = csv_data
             if gt_path:
-                st.success(f"Corrections saved to {gt_path} for capstone evaluation.")
+                st.success(f"Corrections saved to {gt_path}")
             st.rerun()
-
     with fin2:
-        if st.button("Exit review without saving"):
+        if st.button("Exit without saving", use_container_width=True):
             st.session_state.reviewing = False
             st.rerun()
 
@@ -496,95 +498,90 @@ def _render_review(issues: list, entity: str):
         )
 
 
-def _issues_to_csv(issues: list) -> str:
-    if not issues:
-        return ""
-    cols = [
-        "#",
-        "Entity",
-        "Service",
-        "Section",
-        "Language",
-        "Placement",
-        "Description",
-        "Solution",
-    ]
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=cols)
-    writer.writeheader()
-    for i, iss in enumerate(issues, 1):
-        writer.writerow(
-            {
-                "#": i,
-                "Entity": iss.get("entity", ""),
-                "Service": iss.get("service", ""),
-                "Section": iss.get("section", ""),
-                "Language": iss.get("language", ""),
-                "Placement": iss.get("issue_placement", ""),
-                "Description": iss.get("issue_description", ""),
-                "Solution": iss.get("proposed_solution", ""),
-            }
-        )
-    return buf.getvalue()
+# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## Configuration")
+    st.divider()
 
-
-st.title("Bahrain.bh QA Auditor")
-st.caption("Bilingual content quality checker for government service pages.")
-
-st.markdown("---")
-
-st.markdown("### Configuration")
-
-cfg_col1, cfg_col2, cfg_col3 = st.columns(3)
-
-with cfg_col1:
     entity = st.text_input(
         "Entity name",
         placeholder="e.g. National Health Regulatory Authority",
+        help="The government entity you are auditing",
     )
+
     mode = st.selectbox(
         "Audit mode",
         options=["full", "rules", "ai"],
         format_func=lambda x: {
-            "full": "Full — rules + AI (recommended)",
-            "rules": "Rules only — instant, no API calls",
-            "ai": "AI only — LLM checks only",
+            "full": "Full — rules + AI",
+            "rules": "Rules only — no API",
+            "ai": "AI only",
         }[x],
+        help="Full mode gives the best results. Rules only is instant and free.",
     )
-    workers = st.slider("Parallel workers", min_value=1, max_value=6, value=2)
 
-with cfg_col2:
-    if mode != "rules":
-        st.markdown("**API providers**")
-        use_gemini = st.checkbox("Gemini", value=True)
-        use_groq = st.checkbox("Groq", value=False)
-        use_openrouter = st.checkbox("OpenRouter", value=False)
-    else:
+    workers = st.slider(
+        "Parallel workers",
+        min_value=1,
+        max_value=6,
+        value=2,
+        help="How many services to audit simultaneously",
+    )
+
+    st.divider()
+    st.markdown("**API Providers**")
+
+    if mode == "rules":
+        st.caption("No API keys needed for rules-only mode.")
         use_gemini = use_groq = use_openrouter = False
-        st.caption("Rules-only mode — no API keys needed.")
+        gemini_key = groq_key = openrouter_key = ""
+    else:
+        use_gemini = st.checkbox("Gemini", value=True)
+        use_groq = st.checkbox("Groq (fallback)")
+        use_openrouter = st.checkbox("OpenRouter (fallback)")
 
-with cfg_col3:
-    st.markdown("**Screenshots & Drive**")
-    take_screenshots = st.checkbox("Take screenshots", value=False)
+        gemini_key = groq_key = openrouter_key = ""
+        if use_gemini:
+            gemini_key = st.text_input(
+                "Gemini key", type="password", placeholder="AIza...", key="gkey"
+            )
+        if use_groq:
+            groq_key = st.text_input(
+                "Groq key", type="password", placeholder="gsk_...", key="grkey"
+            )
+        if use_openrouter:
+            openrouter_key = st.text_input(
+                "OpenRouter key", type="password", placeholder="sk-or-...", key="orkey"
+            )
+
+        active = [
+            p
+            for p, u in [
+                ("Gemini", use_gemini),
+                ("Groq", use_groq),
+                ("OpenRouter", use_openrouter),
+            ]
+            if u
+        ]
+        if active:
+            st.caption("Chain: " + " → ".join(active))
+
+    st.divider()
+    st.markdown("**Screenshots**")
+    take_screenshots = st.checkbox("Capture screenshots")
     screenshots_dir = "screenshots"
     if take_screenshots:
-        screenshots_dir = st.text_input(
-            "Screenshots folder",
-            value="screenshots",
-            label_visibility="collapsed",
-            placeholder="screenshots",
-        )
+        screenshots_dir = st.text_input("Save to folder", value="screenshots")
+
     use_drive = st.checkbox(
-        "Upload to Google Drive", value=False, disabled=not take_screenshots
+        "Upload to Google Drive",
+        disabled=not take_screenshots,
+        help="Requires screenshots to be enabled",
     )
     drive_key_path = ""
     drive_folder_id = ""
     if use_drive and take_screenshots:
-        uploaded_drive_key = st.file_uploader(
-            "client_secret.json",
-            type=["json"],
-            label_visibility="collapsed",
-        )
+        uploaded_drive_key = st.file_uploader("client_secret.json", type=["json"])
         if uploaded_drive_key:
             tmp_key = tempfile.NamedTemporaryFile(
                 delete=False, suffix=".json", mode="wb"
@@ -596,93 +593,77 @@ with cfg_col3:
         drive_folder_id = st.text_input(
             "Drive folder ID",
             placeholder="1sefehErPbq3V0Q5...",
-            label_visibility="collapsed",
-            help="From the Drive folder URL: .../folders/THIS_PART",
+            help="The ID at the end of your Drive folder URL",
         )
 
-gemini_key = groq_key = openrouter_key = ""
+    st.divider()
+    st.caption("bahrain.bh ContentAuditor · Bilingual audit tool")
 
-if mode != "rules":
-    key_cols = [
-        p
-        for p in ["Gemini", "Groq", "OpenRouter"]
-        if {"Gemini": use_gemini, "Groq": use_groq, "OpenRouter": use_openrouter}[p]
-    ]
-    if key_cols:
-        st.markdown("**API keys**")
-        key_inputs = st.columns(len(key_cols))
-        for i, provider in enumerate(key_cols):
-            with key_inputs[i]:
-                if provider == "Gemini":
-                    gemini_key = st.text_input(
-                        "Gemini key",
-                        type="password",
-                        placeholder="AIza...",
-                        key="gemini_key_input",
-                    )
-                elif provider == "Groq":
-                    groq_key = st.text_input(
-                        "Groq key",
-                        type="password",
-                        placeholder="gsk_...",
-                        key="groq_key_input",
-                    )
-                elif provider == "OpenRouter":
-                    openrouter_key = st.text_input(
-                        "OpenRouter key",
-                        type="password",
-                        placeholder="sk-or-...",
-                        key="openrouter_key_input",
-                    )
-        provider_order = " → ".join(key_cols)
-        st.caption(f"Provider chain: {provider_order}")
 
-st.markdown("### Input")
+# ── MAIN AREA ─────────────────────────────────────────────────────────────────
+st.title("Bahrain.bh ContentAuditor")
+st.caption(
+    "Automated quality checking for government service pages in Arabic and English."
+)
+st.divider()
+
+# ── INPUT ─────────────────────────────────────────────────────────────────────
+st.subheader("What would you like to audit?")
 
 input_tab, psid_tab, esid_tab, csv_tab = st.tabs(
-    ["Upload HTML page", "Enter PSIDs", "Enter ESIDs", "Upload services CSV"]
+    [
+        "Upload HTML page",
+        "Enter Service IDs (PSIDs)",
+        "Enter eService IDs (ESIDs)",
+        "Upload services CSV",
+    ]
 )
 
-html_path = None
+html_path = psids = esids = csv_path = None
 psids = []
 esids = []
-csv_path = None
 
 with input_tab:
-    uploaded_html = st.file_uploader("Upload entity HTML page", type=["html", "htm"])
+    st.caption("Download the entity page from bahrain.bh (Ctrl+S) and upload it here.")
+    uploaded_html = st.file_uploader(
+        "Entity HTML page", type=["html", "htm"], label_visibility="collapsed"
+    )
     if uploaded_html:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
         tmp.write(uploaded_html.read())
         tmp.flush()
         html_path = tmp.name
-        st.success(f"Loaded: {uploaded_html.name}")
+        st.success(f"Loaded {uploaded_html.name}")
 
 with psid_tab:
+    st.caption("Find the psID in the service page URL: ...?psID=1634")
     psid_input = st.text_area(
-        "Service IDs (one per line or space-separated)",
+        "Service IDs — one per line or space-separated",
         placeholder="1634\n1635\n1636",
-        height=100,
+        height=120,
+        label_visibility="collapsed",
     )
     if psid_input.strip():
         psids = [p.strip() for p in psid_input.replace(",", " ").split() if p.strip()]
-        st.caption(f"{len(psids)} PSID(s) entered")
+        st.caption(f"{len(psids)} service ID(s) entered")
 
 with esid_tab:
+    st.caption("Find the esID in the eService URL: ...?esID=230")
     esid_input = st.text_area(
-        "eService IDs (one per line or space-separated)",
+        "eService IDs — one per line or space-separated",
         placeholder="230\n456",
-        height=100,
+        height=120,
+        label_visibility="collapsed",
     )
     if esid_input.strip():
         esids = [e.strip() for e in esid_input.replace(",", " ").split() if e.strip()]
-        st.caption(f"{len(esids)} ESID(s) entered")
+        st.caption(f"{len(esids)} eService ID(s) entered")
 
 with csv_tab:
-    st.caption(
-        "Upload a services CSV (same format as reports/services.csv) with columns: "
-        "PSID, Service Name, URL, Is_eService"
+    st.caption("Upload a CSV with columns: PSID, Service Name, URL, Is_eService")
+    uploaded_csv = st.file_uploader(
+        "Services CSV", type=["csv"], label_visibility="collapsed"
     )
-    uploaded_csv = st.file_uploader("Upload services CSV", type=["csv"])
     if uploaded_csv:
         tmp_csv = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
         tmp_csv.write(uploaded_csv.read())
@@ -692,38 +673,38 @@ with csv_tab:
             import csv as _csv
 
             with open(csv_path, encoding="utf-8-sig") as f:
-                rows = list(_csv.DictReader(f))
-            st.success(f"Loaded: {uploaded_csv.name} — {len(rows)} service(s)")
+                n = sum(1 for _ in _csv.DictReader(f))
+            st.success(f"Loaded {uploaded_csv.name} — {n} service(s)")
         except Exception:
-            st.success(f"Loaded: {uploaded_csv.name}")
+            st.success(f"Loaded {uploaded_csv.name}")
 
-st.markdown("---")
+st.divider()
 
+# ── RUN ───────────────────────────────────────────────────────────────────────
 has_input = bool(html_path or psids or esids or csv_path)
 has_key = bool(gemini_key or groq_key or openrouter_key or mode == "rules")
 
-run_disabled = st.session_state.running or not has_input or not has_key
-
 if not has_input:
-    st.caption(
-        "Provide an HTML file, PSIDs, ESIDs, or a services CSV above to enable the audit."
+    st.info(
+        "Select an input method above — upload an HTML page, enter service IDs, or upload a CSV."
     )
 elif not has_key and mode != "rules":
-    st.caption(
-        "Select at least one provider and enter its API key to enable AI checks."
-    )
+    st.warning("Add at least one API key in the sidebar to enable AI checks.")
 
-run_clicked = st.button(
-    "Run audit" if not st.session_state.running else "Running...",
-    disabled=run_disabled,
-    type="primary",
-)
+run_label = "Running audit..." if st.session_state.running else "Run audit"
+run_disabled = st.session_state.running or not has_input or not has_key
 
-if run_clicked and not st.session_state.running:
+if st.button(
+    run_label, type="primary", disabled=run_disabled, use_container_width=False
+):
     st.session_state.running = True
     st.session_state.results = None
     st.session_state.log_lines = []
     st.session_state.error = ""
+    st.session_state.reviewing = False
+    st.session_state.review_index = 0
+    st.session_state.reviewed = {}
+    st.session_state.added_issues = []
 
     config = {
         "html_path": html_path,
@@ -744,25 +725,18 @@ if run_clicked and not st.session_state.running:
 
     log_q = queue.Queue()
     result_q = queue.Queue()
-
     thread = threading.Thread(
-        target=_run_audit,
-        args=(config, log_q, result_q),
-        daemon=True,
+        target=_run_audit, args=(config, log_q, result_q), daemon=True
     )
     thread.start()
 
     log_box = st.empty()
-    progress_text = st.empty()
-
     while thread.is_alive() or not log_q.empty():
         while not log_q.empty():
-            line = log_q.get_nowait()
-            clean = line.strip()
-            if clean:
-                st.session_state.log_lines.append(clean)
-        log_display = "\n".join(st.session_state.log_lines[-30:])
-        log_box.code(log_display, language=None)
+            line = log_q.get_nowait().strip()
+            if line:
+                st.session_state.log_lines.append(line)
+        log_box.code("\n".join(st.session_state.log_lines[-30:]), language=None)
         time.sleep(0.3)
 
     if not result_q.empty():
@@ -775,6 +749,7 @@ if run_clicked and not st.session_state.running:
     st.session_state.running = False
     st.rerun()
 
+# ── RESULTS ───────────────────────────────────────────────────────────────────
 if st.session_state.error:
     st.error(f"Audit failed: {st.session_state.error}")
 
@@ -782,123 +757,127 @@ if st.session_state.results:
     res = st.session_state.results
     issues = res.get("issues", [])
 
-    st.markdown("---")
-    st.markdown("### Results")
+    st.divider()
+    st.subheader("Results")
 
     ss_count = sum(1 for i in issues if i.get("screenshot"))
     rules_count = sum(1 for i in issues if i.get("rule_id"))
-    rejected = sum(
-        1 for v in st.session_state.reviewed.values() if v["status"] == "rejected"
-    )
-    accepted = sum(
-        1 for v in st.session_state.reviewed.values() if v["status"] == "accepted"
-    )
+    total_with_added = len(issues) + len(st.session_state.added_issues)
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Services audited", res.get("completed", 0))
     m2.metric("Services failed", res.get("failed", 0))
-    m3.metric("Total issues", len(issues) + len(st.session_state.added_issues))
+    m3.metric("Total issues", total_with_added)
     m4.metric("From rules", rules_count)
     m5.metric("Screenshots", ss_count)
 
-    if issues:
+    if not issues:
+        st.info("Audit completed — no issues found.")
+    elif st.session_state.reviewing:
+        st.divider()
+        _render_review(issues, entity)
+    else:
+        st.divider()
+        st.subheader("Issues by section")
         section_counts = {}
         for iss in issues:
             s = iss.get("section", "Other")
             section_counts[s] = section_counts.get(s, 0) + 1
 
-        st.markdown("**Issues by section**")
-        cols = st.columns(min(4, len(section_counts)))
-        for i, (section, count) in enumerate(
+        sec_cols = st.columns(min(5, len(section_counts)))
+        for i, (sec, cnt) in enumerate(
             sorted(section_counts.items(), key=lambda x: -x[1])
         ):
-            cols[i % len(cols)].metric(section, count)
+            sec_cols[i % len(sec_cols)].metric(sec, cnt)
 
-        if not st.session_state.reviewing:
-            st.markdown("**All issues**")
+        st.divider()
+        st.subheader("All issues")
 
-            fcol1, fcol2, fcol3 = st.columns(3)
-            with fcol1:
-                sections = ["All"] + sorted(set(i.get("section", "") for i in issues))
-                sel_section = st.selectbox("Filter by section", sections)
-            with fcol2:
-                langs = ["All", "EN", "AR", "Both"]
-                sel_lang = st.selectbox("Filter by language", langs)
-            with fcol3:
-                sources = ["All", "Rules", "AI"]
-                sel_source = st.selectbox("Filter by source", sources)
+        fc1, fc2, fc3 = st.columns(3)
+        with fc1:
+            sel_section = st.selectbox(
+                "Filter by section",
+                ["All"] + sorted(set(i.get("section", "") for i in issues)),
+            )
+        with fc2:
+            sel_lang = st.selectbox("Filter by language", ["All", "EN", "AR", "Both"])
+        with fc3:
+            sel_source = st.selectbox("Filter by source", ["All", "Rules", "AI"])
 
-            filtered = issues
-            if sel_section != "All":
-                filtered = [i for i in filtered if i.get("section") == sel_section]
-            if sel_lang != "All":
-                filtered = [i for i in filtered if i.get("language") == sel_lang]
-            if sel_source == "Rules":
-                filtered = [i for i in filtered if i.get("rule_id")]
-            elif sel_source == "AI":
-                filtered = [i for i in filtered if not i.get("rule_id")]
+        filtered = issues
+        if sel_section != "All":
+            filtered = [i for i in filtered if i.get("section") == sel_section]
+        if sel_lang != "All":
+            filtered = [i for i in filtered if i.get("language") == sel_lang]
+        if sel_source == "Rules":
+            filtered = [i for i in filtered if i.get("rule_id")]
+        elif sel_source == "AI":
+            filtered = [i for i in filtered if not i.get("rule_id")]
 
-            st.caption(f"Showing {len(filtered)} of {len(issues)} issues")
+        st.caption(f"Showing {len(filtered)} of {len(issues)} issues")
 
-            table_data = []
-            for iss in filtered:
-                idx = iss.get("id", "")
-                rev = st.session_state.reviewed.get(str(idx), {})
-                status_icon = {"accepted": "✓", "rejected": "✗", "edited": "✎"}.get(
-                    rev.get("status", ""), ""
-                )
-                table_data.append(
-                    {
-                        "": status_icon,
-                        "Section": iss.get("section", ""),
-                        "Language": iss.get("language", ""),
-                        "Source": iss.get("rule_id", "AI"),
-                        "Description": iss.get("issue_description", "")[:120],
-                        "Solution": iss.get("proposed_solution", "")[:120],
-                    }
-                )
-
-            st.dataframe(
-                table_data,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "": st.column_config.TextColumn(width="small"),
-                    "Section": st.column_config.TextColumn(width="small"),
-                    "Language": st.column_config.TextColumn(width="small"),
-                    "Source": st.column_config.TextColumn(width="small"),
-                    "Description": st.column_config.TextColumn(width="large"),
-                    "Solution": st.column_config.TextColumn(width="large"),
-                },
+        table_data = []
+        for iss in filtered:
+            idx = iss.get("id", "")
+            rev = st.session_state.reviewed.get(str(idx), {})
+            status = {
+                "accepted": "Accepted",
+                "rejected": "Rejected",
+                "edited": "Edited",
+            }.get(rev.get("status", ""), "")
+            table_data.append(
+                {
+                    "Review": status,
+                    "Section": iss.get("section", ""),
+                    "Language": iss.get("language", ""),
+                    "Source": iss.get("rule_id", "AI"),
+                    "Description": iss.get("issue_description", "")[:140],
+                    "Solution": iss.get("proposed_solution", "")[:140],
+                }
             )
 
-            st.markdown("---")
-            dl_col, rev_col = st.columns([2, 1])
+        st.dataframe(
+            table_data,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Review": st.column_config.TextColumn(width="small"),
+                "Section": st.column_config.TextColumn(width="small"),
+                "Language": st.column_config.TextColumn(width="small"),
+                "Source": st.column_config.TextColumn(width="small"),
+                "Description": st.column_config.TextColumn(width="large"),
+                "Solution": st.column_config.TextColumn(width="large"),
+            },
+        )
 
-            with dl_col:
-                final_issues = _apply_review(
-                    issues, st.session_state.reviewed, st.session_state.added_issues
-                )
-                csv_data = _issues_to_csv(final_issues)
-                st.download_button(
-                    label="Download CSV",
-                    data=csv_data.encode("utf-8-sig"),
-                    file_name=f"audit_{entity.replace(' ','_') or 'results'}.csv",
-                    mime="text/csv",
-                )
+        st.divider()
+        dl_col, rev_col = st.columns([1, 1])
+        with dl_col:
+            final_issues = _apply_review(
+                issues, st.session_state.reviewed, st.session_state.added_issues
+            )
+            csv_data = _issues_to_csv(final_issues)
+            st.download_button(
+                label="Download CSV",
+                data=csv_data.encode("utf-8-sig"),
+                file_name=f"audit_{entity.replace(' ','_') or 'results'}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with rev_col:
+            if st.button("Review issues before export", use_container_width=True):
+                st.session_state.reviewing = True
+                st.session_state.review_index = 0
+                st.rerun()
 
-            with rev_col:
-                if st.button("Review issues before export"):
-                    st.session_state.reviewing = True
-                    st.session_state.review_index = 0
-                    st.rerun()
-
-        else:
-            _render_review(issues, entity)
-
-    else:
-        st.info("Audit completed — no issues found.")
+        if st.session_state.results.get("_final_csv"):
+            st.download_button(
+                label="Download reviewed CSV",
+                data=st.session_state.results["_final_csv"].encode("utf-8-sig"),
+                file_name=f"audit_reviewed_{entity.replace(' ','_') or 'results'}.csv",
+                mime="text/csv",
+            )
 
 if st.session_state.log_lines:
-    with st.expander("Audit log", expanded=False):
+    with st.expander("Audit log"):
         st.code("\n".join(st.session_state.log_lines), language=None)
