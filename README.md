@@ -12,7 +12,6 @@ Manual auditing of government service pages is traditionally a bottleneck, requi
 ## Demonstration & Knowledge Transfer
 
 - **Watch Demo Video** — See the tool in action, auditing services in under 60 seconds.  
-- **View Presentation Slides** — Review the strategic overview and ROI analysis.  
 
 ---
 
@@ -47,8 +46,6 @@ Manual auditing of government service pages is traditionally a bottleneck, requi
 ## Demonstration & Knowledge Transfer
 
 - **Watch Demo Video** — Walkthrough of requirement analysis to automated Jira ticket creation.  
-- **View Presentation Slides** — Deep dive into the multi-agent architecture and CI/CD integration.  
-
 ---
 
 ## Business Value
